@@ -35,7 +35,7 @@
             required
           />
           <label for="book-file-input" class="file-input-label">
-            <i class="fas fa-upload"></i> Chọn tệp sách...
+            <i class="fas fa-upload"></i> Chọn tệp sách (PDF, EPUB)
           </label>
           <input
             type="file"
@@ -48,6 +48,29 @@
         </form>
       </div>
     </div>
+
+    <div id="reader-view" class="reader-view">
+      <button id="close-reader-btn" class="close-reader-btn">
+        &times; Đóng
+      </button>
+      <div id="viewer-container">
+        <div id="viewer"></div>
+        <canvas id="pdf-canvas"></canvas>
+      </div>
+      <div id="reader-nav">
+        <button id="prev-page-btn">
+          <i class="fas fa-arrow-left"></i> Trang trước
+        </button>
+        <span id="page-indicator"></span>
+        <button id="next-page-btn">
+          Trang sau <i class="fas fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
 
     <script src="script.js"></script>
   </body>

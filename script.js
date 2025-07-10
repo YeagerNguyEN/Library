@@ -1,118 +1,198 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const bookGrid = document.getElementById("book-grid");
-  const addBookBtn = document.getElementById("add-book-btn");
-  const modal = document.getElementById("add-book-modal");
-  const closeModalBtn = document.querySelector(".close-btn");
-  const addBookForm = document.getElementById("add-book-form");
-  const bookTitleInput = document.getElementById("book-title-input");
-  const bookFileInput = document.getElementById("book-file-input");
-  const fileNameDisplay = document.getElementById("file-name-display");
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM Elements
+    const bookGrid = document.getElementById('book-grid');
+    const addBookBtn = document.getElementById('add-book-btn');
+    const modal = document.getElementById('add-book-modal');
+    const closeModalBtn = document.querySelector('.close-btn');
+    const addBookForm = document.getElementById('add-book-form');
+    const bookFileInput = document.getElementById('book-file-input');
+    const fileNameDisplay = document.getElementById('file-name-display');
 
-  let books = JSON.parse(localStorage.getItem("books")) || [];
+    // Reader Elements
+    const readerView = document.getElementById('reader-view');
+    const closeReaderBtn = document.getElementById('close-reader-btn');
+    const epubViewer = document.getElementById('epub-viewer');
+    const pdfViewer = document.getElementById('pdf-viewer');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const pageInfo = document.getElementById('page-info');
 
-  // Hiển thị sách khi tải trang
-  const renderBooks = () => {
-    bookGrid.innerHTML = "";
-    if (books.length === 0) {
-      bookGrid.innerHTML =
-        '<p style="grid-column: 1 / -1; text-align: center; color: #888;">Chưa có sách nào. Hãy thêm sách đầu tiên của bạn!</p>';
-      return;
-    }
-    books.forEach((book, index) => {
-      const bookElement = document.createElement("div");
-      bookElement.classList.add("book-item");
-      bookElement.innerHTML = `
-                <i class="fas fa-book-open"></i>
-                <h3 class="book-title">${book.title}</h3>
-                <button class="delete-book-btn" data-index="${index}">&times;</button>
-            `;
+    // App State
+    let books = JSON.parse(localStorage.getItem('bookshelf')) || [];
+    let currentBook = {
+        rendition: null, // For EPUB.js
+        pdfDoc: null,    // For PDF.js
+        pageNum: 1,
+    };
 
-      // Mở sách khi click
-      bookElement.addEventListener("click", (e) => {
-        if (!e.target.classList.contains("delete-book-btn")) {
-          const fileURL = book.fileData;
-          window.open(fileURL, "_blank");
+    // --- Toast Notification ---
+    const showToast = (message, type = 'success') => {
+        const toastContainer = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    };
+
+    // --- Book Management ---
+    const saveBooks = () => {
+        localStorage.setItem('bookshelf', JSON.stringify(books));
+    };
+
+    const renderBooks = () => {
+        bookGrid.innerHTML = '';
+        if (books.length === 0) {
+            bookGrid.innerHTML = '<p class="empty-message">Thư viện của bạn trống. Hãy thêm cuốn sách đầu tiên!</p>';
+            return;
         }
-      });
-
-      // Xóa sách
-      bookElement
-        .querySelector(".delete-book-btn")
-        .addEventListener("click", (e) => {
-          e.stopPropagation(); // Ngăn sự kiện click lan ra phần tử cha
-          const bookIndex = e.target.getAttribute("data-index");
-          deleteBook(bookIndex);
+        books.forEach((book, index) => {
+            const card = document.createElement('div');
+            card.className = 'book-card';
+            card.dataset.index = index;
+            card.innerHTML = `
+                <div class="book-icon"><i class="fas fa-book"></i></div>
+                <h3 class="book-title">${book.title}</h3>
+                <button class="delete-btn" data-index="${index}"><i class="fas fa-trash"></i></button>
+            `;
+            bookGrid.appendChild(card);
         });
+    };
 
-      bookGrid.appendChild(bookElement);
+    // --- Modal Handling ---
+    const toggleModal = (show) => {
+        modal.style.display = show ? 'flex' : 'none';
+        if (show) addBookForm.reset();
+        fileNameDisplay.textContent = '';
+    };
+
+    // --- Reader Handling ---
+    const openReader = (index) => {
+        const book = books[index];
+        readerView.style.display = 'flex';
+
+        if (book.type === 'application/epub+zip') {
+            displayEpub(book.data);
+        } else if (book.type === 'application/pdf') {
+            displayPdf(book.data);
+        }
+    };
+
+    const closeReader = () => {
+        readerView.style.display = 'none';
+        epubViewer.innerHTML = '';
+        currentBook.rendition = null;
+        currentBook.pdfDoc = null;
+    };
+
+    const displayEpub = (data) => {
+        pdfViewer.style.display = 'none';
+        epubViewer.style.display = 'block';
+        const book = ePub(`data:application/epub+zip;base64,${data}`);
+        currentBook.rendition = book.renderTo(epubViewer, {
+            width: '100%',
+            height: '100%',
+            flow: 'paginated',
+            spread: 'auto',
+        });
+        currentBook.rendition.display();
+
+        currentBook.rendition.on('relocated', (location) => {
+            const current = location.start.location;
+            const total = book.locations.length();
+            pageInfo.textContent = `Trang ${current} / ${total}`;
+            prevBtn.disabled = location.atStart;
+            nextBtn.disabled = location.atEnd;
+        });
+    };
+
+    const displayPdf = (data) => {
+        epubViewer.style.display = 'none';
+        pdfViewer.style.display = 'block';
+        const pdfData = atob(data);
+        pdfjsLib.getDocument({ data: pdfData }).promise.then(doc => {
+            currentBook.pdfDoc = doc;
+            currentBook.pageNum = 1;
+            renderPdfPage(currentBook.pageNum);
+        });
+    };
+
+    const renderPdfPage = (num) => {
+        currentBook.pdfDoc.getPage(num).then(page => {
+            const viewport = page.getViewport({ scale: 1.5 });
+            const context = pdfViewer.getContext('2d');
+            pdfViewer.height = viewport.height;
+            pdfViewer.width = viewport.width;
+            page.render({ canvasContext: context, viewport });
+
+            pageInfo.textContent = `Trang ${num} / ${currentBook.pdfDoc.numPages}`;
+            prevBtn.disabled = num <= 1;
+            nextBtn.disabled = num >= currentBook.pdfDoc.numPages;
+        });
+    };
+
+    // --- Event Listeners ---
+    addBookBtn.addEventListener('click', () => toggleModal(true));
+    closeModalBtn.addEventListener('click', () => toggleModal(false));
+
+    bookFileInput.addEventListener('change', () => {
+        fileNameDisplay.textContent = bookFileInput.files.length > 0 ? bookFileInput.files[0].name : '';
     });
-  };
 
-  // Lưu sách vào localStorage
-  const saveBooks = () => {
-    localStorage.setItem("books", JSON.stringify(books));
-  };
+    addBookForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const title = document.getElementById('book-title-input').value;
+        const file = bookFileInput.files[0];
 
-  // Xóa sách
-  const deleteBook = (index) => {
-    if (confirm(`Bạn có chắc muốn xóa sách "${books[index].title}"?`)) {
-      books.splice(index, 1);
-      saveBooks();
-      renderBooks();
-    }
-  };
+        if (title && file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const data = event.target.result.split(',')[1];
+                books.push({ title, data, type: file.type });
+                saveBooks();
+                renderBooks();
+                toggleModal(false);
+                showToast('Đã thêm sách thành công!');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
 
-  // Mở/đóng modal
-  addBookBtn.addEventListener("click", () => {
-    modal.style.display = "flex";
-  });
+    bookGrid.addEventListener('click', (e) => {
+        const card = e.target.closest('.book-card');
+        if (!card) return;
 
-  closeModalBtn.addEventListener("click", () => {
-    modal.style.display = "none";
-  });
+        const index = card.dataset.index;
+        if (e.target.closest('.delete-btn')) {
+            if (confirm(`Bạn có chắc muốn xóa sách "${books[index].title}"?`)) {
+                books.splice(index, 1);
+                saveBooks();
+                renderBooks();
+                showToast('Đã xóa sách.', 'error');
+            }
+        } else {
+            openReader(index);
+        }
+    });
 
-  window.addEventListener("click", (e) => {
-    if (e.target === modal) {
-      modal.style.display = "none";
-    }
-  });
+    closeReaderBtn.addEventListener('click', closeReader);
 
-  // Cập nhật tên tệp khi người dùng chọn
-  bookFileInput.addEventListener("change", () => {
-    if (bookFileInput.files.length > 0) {
-      fileNameDisplay.textContent = bookFileInput.files[0].name;
-    } else {
-      fileNameDisplay.textContent = "Chưa có tệp nào được chọn";
-    }
-  });
+    prevBtn.addEventListener('click', () => {
+        if (currentBook.rendition) currentBook.rendition.prev();
+        if (currentBook.pdfDoc && currentBook.pageNum > 1) {
+            currentBook.pageNum--;
+            renderPdfPage(currentBook.pageNum);
+        }
+    });
 
-  // Xử lý form thêm sách
-  addBookForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-
-    const title = bookTitleInput.value;
-    const file = bookFileInput.files[0];
-
-    if (title && file) {
-      const reader = new FileReader();
-      reader.onload = function (event) {
-        const newBook = {
-          title: title,
-          fileData: event.target.result, // Lưu dữ liệu file dưới dạng Base64
-        };
-        books.push(newBook);
-        saveBooks();
-        renderBooks();
-
-        // Reset form và đóng modal
-        addBookForm.reset();
-        fileNameDisplay.textContent = "Chưa có tệp nào được chọn";
-        modal.style.display = "none";
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  // Bắt đầu
-  renderBooks();
+    nextBtn.addEventListener('click', () => {
+        if (currentBook.rendition) currentBook.rendition.next();
+        if (currentBook.pdfDoc && currentBook.pageNum < currentBook.pdfDoc.numPages) {
+            currentBook.pageNum++;
+            renderPdfPage(currentBook.pageNum);
+        }
+    });
+    
+    // --- Initial Load ---
+    renderBooks();
 });
