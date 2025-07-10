@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thư viện Sách của Tôi</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+  </head>
+  <body>
+    <header>
+      <h1>📚 Thư viện Sách của Tôi</h1>
+    </header>
+
+    <main>
+      <div id="book-grid" class="book-grid"></div>
+    </main>
+
+    <button id="add-book-btn" class="add-book-btn">
+      <i class="fas fa-plus"></i> Thêm sách
+    </button>
+
+    <div id="add-book-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h2>Thêm sách mới</h2>
+        <form id="add-book-form">
+          <input
+            type="text"
+            id="book-title-input"
+            placeholder="Nhập tên sách"
+            required
+          />
+          <label for="book-file-input" class="file-input-label">
+            <i class="fas fa-upload"></i> Chọn tệp sách...
+          </label>
+          <input
+            type="file"
+            id="book-file-input"
+            accept=".pdf, .epub"
+            required
+          />
+          <span id="file-name-display">Chưa có tệp nào được chọn</span>
+          <button type="submit">Lưu sách</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
